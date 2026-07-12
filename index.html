@@ -367,6 +367,56 @@
             </button>
           </div>
 
+          <!-- Device Sync Section -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-4">
+            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+              <i data-lucide="refresh-cw" class="w-4 h-4 text-brand-500"></i>
+              <span>デバイス間での進捗同期</span>
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              学習進捗と履歴を別のスマホやPCと同期できます。
+            </p>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-show-export" class="py-2 px-3 bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:hover:bg-brand-950/50 dark:text-brand-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1">
+                <i data-lucide="share" class="w-3.5 h-3.5"></i>
+                <span>同期コードを発行</span>
+              </button>
+              <button id="btn-show-import" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>コードを読み込む</span>
+              </button>
+            </div>
+
+            <!-- Export Code Area (Hidden by default) -->
+            <div id="sync-export-box" class="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 hidden">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block">現在のデバイスの同期コード:</span>
+              <textarea id="txt-sync-code-output" readonly class="w-full h-20 p-2 text-[10px] font-mono border border-slate-200 dark:border-slate-800 dark:bg-slate-950 rounded-xl focus:outline-none resize-none"></textarea>
+              <div class="flex space-x-2">
+                <button id="btn-copy-sync-code" class="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                  <span>コードをコピー</span>
+                </button>
+              </div>
+              
+              <!-- QR Code (Hidden by default until generated) -->
+              <div id="sync-qrcode-container" class="flex flex-col items-center justify-center space-y-1.5 pt-2 hidden">
+                <span class="text-[10px] text-slate-400">QRコードをスキャンしてコピーできます</span>
+                <img id="img-sync-qrcode" class="w-40 h-40 border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white" alt="Sync QR Code">
+              </div>
+            </div>
+
+            <!-- Import Code Area (Hidden by default) -->
+            <div id="sync-import-box" class="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 hidden">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block">同期コードを入力:</span>
+              <textarea id="txt-sync-code-input" placeholder="ここに別のデバイスからコピーした同期コードを貼り付けてください" class="w-full h-20 p-2 text-[10px] font-mono border border-slate-200 dark:border-slate-800 dark:bg-slate-950 rounded-xl focus:outline-none resize-none"></textarea>
+              <button id="btn-apply-sync" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                <span>進捗を同期・マージする</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Active Vocabulary Summary -->
           <div id="import-stats-box" class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-3 hidden">
             <h4 class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">現在のデータステータス</h4>

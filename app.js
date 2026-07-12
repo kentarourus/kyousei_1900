@@ -404,6 +404,129 @@ function showImportStats() {
 }
 
 // ----------------------------------------------------
+// 6.5. DEVICE SYNC (EXPORT/IMPORT BY CODE)
+// ----------------------------------------------------
+function encodeStatuses(words) {
+  // Convert word status to a bitmask representation
+  // 1900 words, 4 words per byte = 475 bytes
+  const bytes = new Uint8Array(475);
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const statusVal = word.status === 'mastered' ? 2 : (word.status === 'learning' ? 1 : 0);
+    const byteIndex = Math.floor(i / 4);
+    const bitOffset = (i % 4) * 2;
+    bytes[byteIndex] |= (statusVal << bitOffset);
+  }
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function decodeStatuses(base64Str, words) {
+  const binary = atob(base64Str);
+  let updatedCount = 0;
+  for (let i = 0; i < words.length; i++) {
+    const byteIndex = Math.floor(i / 4);
+    if (byteIndex >= binary.length) break;
+    const byteVal = binary.charCodeAt(byteIndex);
+    const bitOffset = (i % 4) * 2;
+    const statusVal = (byteVal >> bitOffset) & 3;
+    
+    const newStatus = statusVal === 2 ? 'mastered' : (statusVal === 1 ? 'learning' : 'new');
+    
+    // Status hierarchy rank
+    const currentRank = words[i].status === 'mastered' ? 2 : (words[i].status === 'learning' ? 1 : 0);
+    if (statusVal > currentRank) {
+      words[i].status = newStatus;
+      words[i].lastStudiedDate = getTodayString(); // Mark as studied today if progress advanced
+      updatedCount++;
+    }
+  }
+  return updatedCount;
+}
+
+function generateSyncCode() {
+  if (state.words.length === 0) {
+    alert('同期する単語データがありません。');
+    return null;
+  }
+  
+  const payload = {
+    s: encodeStatuses(state.words),
+    h: {
+      s: state.history.streak,
+      d: state.history.lastStudiedDate,
+      a: state.history.activity
+    },
+    t: Date.now()
+  };
+  
+  const jsonStr = JSON.stringify(payload);
+  const utf8Bytes = new TextEncoder().encode(jsonStr);
+  let binary = '';
+  for (let i = 0; i < utf8Bytes.byteLength; i++) {
+    binary += String.fromCharCode(utf8Bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function applySyncCode(base64Str) {
+  try {
+    const binary = atob(base64Str);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const jsonStr = new TextDecoder().decode(bytes);
+    const payload = JSON.parse(jsonStr);
+    
+    if (!payload.s || !payload.h) {
+      throw new Error('同期データのフォーマットが正しくありません。');
+    }
+    
+    // Ensure words exist
+    if (state.words.length === 0) {
+      loadDefaultWords();
+    }
+    
+    // Decode word statuses
+    const updatedCount = decodeStatuses(payload.s, state.words);
+    
+    // Merge history streak
+    if (payload.h.s > state.history.streak) {
+      state.history.streak = payload.h.s;
+    }
+    
+    // Merge lastStudiedDate
+    if (payload.h.d) {
+      if (!state.history.lastStudiedDate || payload.h.d > state.history.lastStudiedDate) {
+        state.history.lastStudiedDate = payload.h.d;
+      }
+    }
+    
+    // Merge activity
+    if (payload.h.a) {
+      for (const [date, count] of Object.entries(payload.h.a)) {
+        state.history.activity[date] = Math.max(state.history.activity[date] || 0, count);
+      }
+    }
+    
+    saveDataToStorage();
+    showImportStats();
+    renderDashboard();
+    
+    alert(`同期が成功しました！\n${updatedCount}語の進捗と学習履歴を同期・マージしました。`);
+    return true;
+  } catch (err) {
+    alert('同期データの適用に失敗しました。無効なコードかコピーが不完全な可能性があります。\nエラー: ' + err.message);
+    return false;
+  }
+}
+
+
+// ----------------------------------------------------
 // 7. STUDY CYCLE CONTROLLER (Morning, Afternoon, Evening, Night)
 // ----------------------------------------------------
 function startStudySession(mode) {
@@ -1059,4 +1182,60 @@ function setupEventListeners() {
     stopAutoplay();
     showView('view-dashboard');
   });
+
+  // Device Sync UI event handlers
+  const btnShowExport = document.getElementById('btn-show-export');
+  const btnShowImport = document.getElementById('btn-show-import');
+  const exportBox = document.getElementById('sync-export-box');
+  const importBox = document.getElementById('sync-import-box');
+  
+  if (btnShowExport && btnShowImport) {
+    btnShowExport.addEventListener('click', () => {
+      const code = generateSyncCode();
+      if (code) {
+        document.getElementById('txt-sync-code-output').value = code;
+        exportBox.classList.remove('hidden');
+        importBox.classList.add('hidden');
+        
+        // Generate QR Code URL
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(code)}`;
+        const qrContainer = document.getElementById('sync-qrcode-container');
+        const qrImg = document.getElementById('img-sync-qrcode');
+        qrImg.src = qrUrl;
+        qrContainer.classList.remove('hidden');
+      }
+    });
+    
+    btnShowImport.addEventListener('click', () => {
+      importBox.classList.remove('hidden');
+      exportBox.classList.add('hidden');
+    });
+    
+    document.getElementById('btn-copy-sync-code').addEventListener('click', () => {
+      const textarea = document.getElementById('txt-sync-code-output');
+      textarea.select();
+      try {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          alert('同期コードをクリップボードにコピーしました！別のデバイスに貼り付けてください。');
+        }).catch(err => {
+          document.execCommand('copy');
+          alert('同期コードをコピーしました！');
+        });
+      } catch (e) {
+        document.execCommand('copy');
+        alert('同期コードをコピーしました！');
+      }
+    });
+    
+    document.getElementById('btn-apply-sync').addEventListener('click', () => {
+      const codeInput = document.getElementById('txt-sync-code-input').value.trim();
+      if (!codeInput) {
+        alert('同期コードを入力してください。');
+        return;
+      }
+      if (confirm('別のデバイスの学習進捗を取り込み、現在の履歴とマージします。よろしいですか？')) {
+        applySyncCode(codeInput);
+      }
+    });
+  }
 }
