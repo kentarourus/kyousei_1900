@@ -85,3 +85,9 @@
 .pulse-active {
   animation: pulse-ring 2s infinite;
 }
+
+/* Card face transitions for visual flipping stability */
+.card-face-front,
+.card-face-back {
+  transition: opacity 0.3s ease-in-out, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}

@@ -24,6 +24,11 @@ let state = {
     currentX: 0,
     currentY: 0,
     element: null
+  },
+  // Autoplay state for Morning Mode
+  autoplay: {
+    intervalId: null,
+    playing: false
   }
 };
 
@@ -466,6 +471,33 @@ function startStudySession(mode) {
   document.getElementById('txt-study-title').textContent = modeTitle;
   document.getElementById('txt-study-mode-desc').textContent = modeDesc;
   
+  // Stop any active autoplay on session start
+  stopAutoplay();
+
+  // Adjust control buttons dynamically based on mode
+  const btnNo = document.getElementById('btn-action-no');
+  const btnYes = document.getElementById('btn-action-yes');
+  
+  if (mode === 'morning') {
+    // Morning Mode: Left button -> Autoplay Start/Pause, Right button -> Next card
+    btnNo.innerHTML = `<svg class="w-6 h-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+    btnNo.title = "オートプレイ開始";
+    btnNo.className = "w-12 h-12 rounded-full border border-amber-200 dark:border-amber-900/30 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 flex items-center justify-center transition-all shadow-sm active:scale-90";
+    
+    btnYes.innerHTML = `<svg class="w-6 h-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`;
+    btnYes.title = "次の単語";
+    btnYes.className = "w-12 h-12 rounded-full border border-amber-200 dark:border-amber-900/30 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 flex items-center justify-center transition-all shadow-sm active:scale-90";
+  } else {
+    // Default Mode: Left button -> Dislike (red X), Right button -> Like (green check)
+    btnNo.innerHTML = `<svg class="w-6 h-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    btnNo.title = "わからない";
+    btnNo.className = "w-12 h-12 rounded-full border border-red-200 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center justify-center transition-all shadow-sm active:scale-90";
+    
+    btnYes.innerHTML = `<svg class="w-6 h-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    btnYes.title = "わかる";
+    btnYes.className = "w-12 h-12 rounded-full border border-emerald-200 dark:border-emerald-900/30 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 flex items-center justify-center transition-all shadow-sm active:scale-90";
+  }
+
   // Show first card
   renderCurrentCard();
 }
@@ -514,11 +546,11 @@ function renderCurrentCard() {
     </div>
     
     <!-- Back Face -->
-    <div class="card-face-back absolute inset-0 flex flex-col justify-between p-6 rotate-y-180 backface-hidden bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 border-2 border-brand-500/20 rounded-3xl">
+    <div class="card-face-back absolute inset-0 flex flex-col justify-between p-6 rotate-y-180 backface-hidden bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 border-2 border-brand-500/20 rounded-3xl opacity-0 pointer-events-none">
       <div class="flex justify-between items-center text-[10px] font-bold text-brand-500">
         <span>MEANING</span>
         <button class="btn-card-tts p-1.5 rounded-full bg-brand-50 dark:bg-brand-950/50 text-brand-600 dark:text-brand-400">
-          <i data-lucide="volume-2" class="w-4 h-4"></i>
+          <svg class="w-4 h-4 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
         </button>
       </div>
       <div class="text-center py-10 flex-1 flex flex-col justify-center">
@@ -619,6 +651,23 @@ function setupDragHandlers(card) {
   const updateTransform = (x = 0, y = 0, r = 0) => {
     const flipRotation = isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)';
     card.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${r}deg) ${flipRotation}`;
+    
+    // Toggle opacity & pointer events to work around browser backface-visibility engine bugs
+    const front = card.querySelector('.card-face-front');
+    const back = card.querySelector('.card-face-back');
+    if (front && back) {
+      if (isFlipped) {
+        front.style.opacity = '0';
+        front.style.pointerEvents = 'none';
+        back.style.opacity = '1';
+        back.style.pointerEvents = 'auto';
+      } else {
+        front.style.opacity = '1';
+        front.style.pointerEvents = 'auto';
+        back.style.opacity = '0';
+        back.style.pointerEvents = 'none';
+      }
+    }
   };
 
   // Expose flip toggle to external button clicks
@@ -626,6 +675,20 @@ function setupDragHandlers(card) {
     isFlipped = !isFlipped;
     updateTransform(0, 0, 0);
   };
+
+  // Click handler for flips (highly reliable across all browsers/emulators)
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.btn-card-tts')) return;
+    
+    if (hasDragged) {
+      // Consume the click event if we were dragging
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    
+    card.toggleFlip();
+  });
 
   // TTS Speaker inside back card
   const ttsBtn = card.querySelector('.btn-card-tts');
@@ -655,16 +718,14 @@ function setupDragHandlers(card) {
     const diffX = x - state.drag.startX;
     const diffY = y - state.drag.startY;
     
-    // If the movement is more than 6px, treat it as a drag
-    if (Math.abs(x - startX) > 6 || Math.abs(y - startY) > 6) {
+    // If the movement is more than 8px, treat it as a drag
+    if (Math.abs(x - startX) > 8 || Math.abs(y - startY) > 8) {
       hasDragged = true;
     }
     
     state.drag.currentX = diffX;
     state.drag.currentY = diffY;
     
-    // Apply transform (move & rotate & flip state)
-    // Flip rotation direction should match flip state
     const rotate = diffX / 10;
     updateTransform(diffX, diffY, rotate);
     
@@ -693,62 +754,70 @@ function setupDragHandlers(card) {
     
     card.classList.add('card-drag-transition');
     
-    if (hasDragged) {
+    if (hasDragged && (diffX > swipeThreshold || diffX < -swipeThreshold)) {
       if (diffX > swipeThreshold) {
         // Swipe Right -> Mastered
         swipeCardOut('right');
-      } else if (diffX < -swipeThreshold) {
+      } else {
         // Swipe Left -> Learning
         swipeCardOut('left');
-      } else {
-        // Bounce back to stable position
-        updateTransform(0, 0, 0);
-        const overlayLike = card.querySelector('.overlay-like');
-        const overlayNope = card.querySelector('.overlay-nope');
-        if (overlayLike) overlayLike.style.opacity = 0;
-        if (overlayNope) overlayNope.style.opacity = 0;
       }
     } else {
-      // Tap detected (little to no drag movement)
-      isFlipped = !isFlipped;
+      // Bounce back to stable position
       updateTransform(0, 0, 0);
+      const overlayLike = card.querySelector('.overlay-like');
+      const overlayNope = card.querySelector('.overlay-nope');
+      if (overlayLike) overlayLike.style.opacity = 0;
+      if (overlayNope) overlayNope.style.opacity = 0;
+      
+      // Delay resetting hasDragged to let the click handler consume the drag click
+      setTimeout(() => {
+        hasDragged = false;
+      }, 50);
     }
     
-    // Reset positions
     state.drag.currentX = 0;
     state.drag.currentY = 0;
+  };
+
+  // Dynamic window listeners bound only during active drag
+  const onMouseMove = (e) => {
+    moveDrag(e.clientX, e.clientY);
+  };
+  
+  const onMouseUp = () => {
+    endDrag();
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
   };
 
   // Mouse handlers
   card.addEventListener('mousedown', (e) => {
     if (e.button !== 0 || e.target.closest('.btn-card-tts')) return; // Left click only, avoid buttons
     startDrag(e.clientX, e.clientY);
-  });
-  
-  window.addEventListener('mousemove', (e) => {
-    if (!state.drag.active) return;
-    moveDrag(e.clientX, e.clientY);
-  });
-  
-  window.addEventListener('mouseup', () => {
-    endDrag();
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
   });
 
-  // Touch handlers
+  // Touch handlers (Touch events handle window scope via changedTouches/targetTouches natively)
+  const onTouchMove = (e) => {
+    if (!state.drag.active) return;
+    const touch = e.touches[0];
+    moveDrag(touch.clientX, touch.clientY);
+  };
+
+  const onTouchEnd = () => {
+    endDrag();
+    card.removeEventListener('touchmove', onTouchMove);
+    card.removeEventListener('touchend', onTouchEnd);
+  };
+
   card.addEventListener('touchstart', (e) => {
     if (e.target.closest('.btn-card-tts')) return;
     const touch = e.touches[0];
     startDrag(touch.clientX, touch.clientY);
-  });
-
-  card.addEventListener('touchmove', (e) => {
-    if (!state.drag.active) return;
-    const touch = e.touches[0];
-    moveDrag(touch.clientX, touch.clientY);
-  });
-
-  card.addEventListener('touchend', () => {
-    endDrag();
+    card.addEventListener('touchmove', onTouchMove);
+    card.addEventListener('touchend', onTouchEnd);
   });
 }
 
@@ -758,16 +827,24 @@ function swipeCardOut(direction) {
   
   const currentWord = state.currentSession.words[state.currentSession.currentIndex];
   
-  if (direction === 'right') {
-    card.classList.add('card-swipe-out-right');
-    updateWordStatus(currentWord.id, 'mastered');
-  } else {
-    card.classList.add('card-swipe-out-left');
+  if (state.currentSession.mode === 'morning') {
+    // Morning Mode: Swipe does not sort as learned/not-learned.
+    // Both directions mean "viewed" and move it to 'learning' status for afternoon tests.
+    card.classList.add(direction === 'right' ? 'card-swipe-out-right' : 'card-swipe-out-left');
     updateWordStatus(currentWord.id, 'learning');
-    
-    // Add to wrong list for night mode cycle if active
-    if (state.currentSession.mode === 'night') {
-      state.currentSession.wrongList.push(currentWord);
+  } else {
+    // Standard sorting modes
+    if (direction === 'right') {
+      card.classList.add('card-swipe-out-right');
+      updateWordStatus(currentWord.id, 'mastered');
+    } else {
+      card.classList.add('card-swipe-out-left');
+      updateWordStatus(currentWord.id, 'learning');
+      
+      // Add to wrong list for night mode cycle if active
+      if (state.currentSession.mode === 'night') {
+        state.currentSession.wrongList.push(currentWord);
+      }
     }
   }
 
@@ -787,15 +864,66 @@ function updateWordStatus(wordId, status) {
   }
 }
 
-// ----------------------------------------------------
-// 9. SPEECH SYNTHESIS API (TTS)
-// ----------------------------------------------------
+// Autoplay controllers for Morning Mode
+function toggleAutoplay() {
+  if (state.autoplay.playing) {
+    stopAutoplay();
+  } else {
+    startAutoplay();
+  }
+}
+
+function startAutoplay() {
+  if (state.autoplay.playing) return;
+  state.autoplay.playing = true;
+  
+  const btnNo = document.getElementById('btn-action-no');
+  btnNo.innerHTML = `<svg class="w-6 h-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+  btnNo.title = "一時停止";
+  
+  let phase = 0; // 0: show word -> show meaning, 1: show meaning -> next word
+  
+  state.autoplay.intervalId = setInterval(() => {
+    const activeCard = document.querySelector('.study-card');
+    if (!activeCard) {
+      stopAutoplay();
+      return;
+    }
+    
+    if (phase === 0) {
+      // Flip to show meaning
+      if (typeof activeCard.toggleFlip === 'function') {
+        activeCard.toggleFlip();
+      }
+      phase = 1;
+    } else {
+      // Go to next card
+      phase = 0;
+      state.drag.element = activeCard;
+      swipeCardOut('right');
+    }
+  }, 1500);
+}
+
+function stopAutoplay() {
+  state.autoplay.playing = false;
+  if (state.autoplay.intervalId) {
+    clearInterval(state.autoplay.intervalId);
+    state.autoplay.intervalId = null;
+  }
+  const btnNo = document.getElementById('btn-action-no');
+  if (btnNo && state.currentSession.mode === 'morning') {
+    btnNo.innerHTML = `<svg class="w-6 h-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+    btnNo.title = "オートプレイ開始";
+  }
+}
+
 function speakWord(text) {
   if ('speechSynthesis' in window) {
     // Cancel active speech
     window.speechSynthesis.cancel();
     
-    const utterance = new javaObjectSpeechSynthesisUtterance || new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
@@ -818,6 +946,7 @@ function setupEventListeners() {
   document.getElementById('btn-import-back').addEventListener('click', () => showView('view-dashboard'));
   document.getElementById('btn-finish-import').addEventListener('click', () => showView('view-dashboard'));
   document.getElementById('btn-study-back').addEventListener('click', () => {
+    stopAutoplay();
     showView('view-dashboard');
   });
   
@@ -864,10 +993,14 @@ function setupEventListeners() {
   
   // Study Footer Action Buttons
   document.getElementById('btn-action-no').addEventListener('click', () => {
-    const activeCard = document.querySelector('.study-card');
-    if (activeCard) {
-      state.drag.element = activeCard;
-      swipeCardOut('left');
+    if (state.currentSession.mode === 'morning') {
+      toggleAutoplay();
+    } else {
+      const activeCard = document.querySelector('.study-card');
+      if (activeCard) {
+        state.drag.element = activeCard;
+        swipeCardOut('left');
+      }
     }
   });
   
@@ -875,14 +1008,22 @@ function setupEventListeners() {
     const activeCard = document.querySelector('.study-card');
     if (activeCard) {
       state.drag.element = activeCard;
+      // In morning mode this functions as "Next Card"
       swipeCardOut('right');
     }
   });
   
   document.getElementById('btn-action-flip').addEventListener('click', () => {
+    console.log("Flip button clicked!");
     const activeCard = document.querySelector('.study-card');
     if (activeCard) {
-      activeCard.classList.toggle('rotate-y-180');
+      if (typeof activeCard.toggleFlip === 'function') {
+        activeCard.toggleFlip();
+      } else {
+        console.warn("toggleFlip function is not bound to active card", activeCard);
+      }
+    } else {
+      console.warn("No active card found to flip.");
     }
   });
   
@@ -894,6 +1035,7 @@ function setupEventListeners() {
   });
 
   document.getElementById('btn-empty-return').addEventListener('click', () => {
+    stopAutoplay();
     showView('view-dashboard');
   });
 }
