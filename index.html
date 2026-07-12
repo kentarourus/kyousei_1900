@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>英単語ターゲット 習慣化サポーター</title>
+  <!-- Google Fonts: Inter & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Papa Parse (CSV) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-50 text-slate-900 h-full font-sans antialiased dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
+
+  <!-- Main Container -->
+  <div class="max-w-md mx-auto h-full flex flex-col bg-white dark:bg-slate-900 shadow-xl overflow-hidden relative border-x border-slate-100 dark:border-slate-800">
+    
+    <!-- Top Global Navigation Header -->
+    <header class="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-violet-500 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-brand-500/20">T</div>
+        <span class="font-extrabold text-slate-800 dark:text-slate-100 tracking-tight text-base">Target1900 Habit</span>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button id="btn-dark-toggle" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors">
+          <i data-lucide="moon" class="w-5 h-5 dark:hidden pointer-events-none"></i>
+          <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-amber-400 pointer-events-none"></i>
+        </button>
+        <button id="btn-nav-import" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors" title="CSVアップロード">
+          <i data-lucide="upload-cloud" class="w-5 h-5 pointer-events-none"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- App Views Content Area (Scrollable container) -->
+    <main class="flex-1 overflow-y-auto relative pb-6">
+
+      <!-- ============================================== -->
+      <!-- VIEW 1: DASHBOARD VIEW (Default)               -->
+      <!-- ============================================== -->
+      <section id="view-dashboard" class="px-4 py-4 space-y-5">
+        
+        <!-- Streak Card & Quick Summary -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-950/40 dark:to-orange-950/30 p-4 rounded-2xl border border-amber-200/50 dark:border-amber-900/30 flex flex-col justify-between shadow-sm relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 opacity-10 dark:opacity-20 text-orange-600 dark:text-orange-400">
+              <i data-lucide="flame" class="w-20 h-20"></i>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-amber-800 dark:text-amber-300">ストリーク</span>
+              <div class="p-1 rounded-full bg-amber-500 text-white pulse-active">
+                <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <span id="txt-streak-count" class="text-3xl font-extrabold text-amber-900 dark:text-amber-100">0</span>
+              <span class="text-xs font-bold text-amber-800 dark:text-amber-300 ml-1">日連続</span>
+            </div>
+            <p class="text-[10px] text-amber-700/80 dark:text-amber-400/80 mt-1">毎日コツコツ継続中！</p>
+          </div>
+
+          <div class="bg-gradient-to-br from-indigo-50 to-brand-100 dark:from-indigo-950/40 dark:to-indigo-950/30 p-4 rounded-2xl border border-indigo-200/50 dark:border-indigo-900/30 flex flex-col justify-between shadow-sm relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 opacity-10 dark:opacity-20 text-indigo-600 dark:text-indigo-400">
+              <i data-lucide="graduation-cap" class="w-20 h-20"></i>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-indigo-800 dark:text-indigo-300">習得単語数</span>
+              <div class="p-1 rounded-full bg-indigo-500 text-white">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i>
+              </div>
+            </div>
+            <div class="mt-2">
+              <span id="txt-mastered-count" class="text-3xl font-extrabold text-indigo-900 dark:text-indigo-100">0</span>
+              <span id="txt-total-count" class="text-xs font-medium text-indigo-600 dark:text-indigo-400 ml-0.5">/ 0語</span>
+            </div>
+            <p class="text-[10px] text-indigo-700/80 dark:text-indigo-400/80 mt-1">Masteredステータス</p>
+          </div>
+        </div>
+
+        <!-- Overall Progress Section -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+              <i data-lucide="bar-chart-2" class="w-4 h-4 text-brand-500"></i>
+              <span>セクション別進捗</span>
+            </h3>
+            <span id="txt-progress-percentage" class="text-xs font-extrabold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/50 px-2 py-0.5 rounded-full">0%</span>
+          </div>
+
+          <!-- Master Progress Bar -->
+          <div class="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden flex">
+            <div id="bar-mastered" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+            <div id="bar-learning" class="bg-indigo-400 h-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>習得済 (Mastered)</span>
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-indigo-400 mr-1"></span>学習中 (Learning)</span>
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 mr-1"></span>未学習 (New)</span>
+          </div>
+
+          <!-- Section List (Horizontal Mini-badges) -->
+          <div class="pt-2">
+            <span class="text-xs text-slate-500 dark:text-slate-400 block mb-2 font-semibold">各セクションの習得状況 (S1-S19)</span>
+            <div id="list-sections-progress" class="grid grid-cols-5 gap-1.5 max-h-24 overflow-y-auto pr-1">
+              <!-- Dynamically populated sections -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Heatmap Section (GitHub style) -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center space-x-1.5">
+            <i data-lucide="calendar" class="w-4 h-4 text-emerald-500"></i>
+            <span>学習の記録（直近30日）</span>
+          </h3>
+          <div class="flex flex-col items-center">
+            <!-- Heatmap Grid -->
+            <div id="heatmap-grid" class="grid grid-flow-col grid-rows-7 gap-1 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+              <!-- 7 rows * 5 columns approx 35 days -->
+            </div>
+            <div class="flex justify-between w-full mt-2 text-[9px] text-slate-400 px-1">
+              <span>30日前</span>
+              <div class="flex items-center space-x-1">
+                <span>少</span>
+                <span class="w-2.5 h-2.5 bg-slate-100 dark:bg-slate-800 rounded-sm"></span>
+                <span class="w-2.5 h-2.5 bg-emerald-200 dark:bg-emerald-900/50 rounded-sm"></span>
+                <span class="w-2.5 h-2.5 bg-emerald-400 dark:bg-emerald-700 rounded-sm"></span>
+                <span class="w-2.5 h-2.5 bg-emerald-600 dark:bg-emerald-500 rounded-sm"></span>
+                <span>多</span>
+              </div>
+              <span>今日</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Habit Cycle Tasks (Time of day tasks) -->
+        <div class="space-y-3">
+          <h3 class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">今日の学習サイクル</h3>
+          
+          <!-- Task 1: Morning (Import & Review New) -->
+          <div class="task-card bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between hover:border-brand-200 dark:hover:border-brand-900/50 transition-all">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+                <i data-lucide="sunrise" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">【朝】新規単語の閲覧</h4>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">1秒タップ送り・オートプレイで語彙増強</p>
+              </div>
+            </div>
+            <button id="btn-task-morning" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-500/10 transition-transform active:scale-95">START</button>
+          </div>
+
+          <!-- Task 2: Afternoon (Interleaved Test - Swipe UI) -->
+          <div class="task-card bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between hover:border-brand-200 dark:hover:border-brand-900/50 transition-all">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center font-bold">
+                <i data-lucide="sun" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">【昼】仕分けテスト</h4>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">左右スワイプで覚えた/覚えてないを判定</p>
+              </div>
+            </div>
+            <button id="btn-task-afternoon" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/10 transition-transform active:scale-95">START</button>
+          </div>
+
+          <!-- Task 3: Evening (Spaced Repetition Review) -->
+          <div class="task-card bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between hover:border-brand-200 dark:hover:border-brand-900/50 transition-all">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold">
+                <i data-lucide="sunset" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">【夕方】過去の復習</h4>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">習得済みの単語を間隔反復で定着確認</p>
+              </div>
+            </div>
+            <button id="btn-task-evening" class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold shadow-md shadow-orange-500/10 transition-transform active:scale-95">START</button>
+          </div>
+
+          <!-- Task 4: Night (Sudden Death) -->
+          <div class="task-card bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm flex items-center justify-between hover:border-brand-200 dark:hover:border-brand-900/50 transition-all">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center font-bold">
+                <i data-lucide="moon" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">【夜】今日の総復習</h4>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500">今日間違えた単語をサドンデスループ学習</p>
+              </div>
+            </div>
+            <button id="btn-task-night" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold shadow-md shadow-violet-500/10 transition-transform active:scale-95">START</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 2: STUDY INTERFACE (Tinder Swipe View)    -->
+      <!-- ============================================== -->
+      <section id="view-study" class="absolute inset-0 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between hidden z-10">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <button id="btn-study-back" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <i data-lucide="chevron-left" class="w-5 h-5 pointer-events-none"></i>
+          </button>
+          <div class="text-center">
+            <span id="txt-study-title" class="font-extrabold text-sm text-slate-800 dark:text-slate-200">仕分けテスト</span>
+            <span id="txt-study-mode-desc" class="block text-[10px] text-slate-400">昼モード</span>
+          </div>
+          <div class="flex items-center space-x-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <span id="txt-study-progress">0/0</span>
+          </div>
+        </div>
+
+        <!-- Upper Progress Bar -->
+        <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5">
+          <div id="bar-study-progress" class="bg-brand-600 h-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+
+        <!-- Card Container (Tinder Arena) -->
+        <div class="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden select-none">
+          
+          <!-- Tinder Arena cards wrapper -->
+          <div id="card-arena" class="w-full max-w-[280px] h-[360px] relative perspective-1000">
+            <!-- Cards will be populated dynamically -->
+            <!-- Empty state (When all cards processed) -->
+            <div id="arena-empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl shadow-sm hidden">
+              <div class="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-500 mb-4 animate-bounce">
+                <i data-lucide="party-popper" class="w-8 h-8"></i>
+              </div>
+              <h3 class="text-lg font-extrabold text-slate-800 dark:text-slate-100">学習完了！</h3>
+              <p id="txt-empty-desc" class="text-xs text-slate-400 dark:text-slate-500 mt-2 px-4 leading-relaxed">このセッションのすべての単語を仕分けました！</p>
+              <button id="btn-empty-return" class="mt-6 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-brand-500/10 active:scale-95 transition-transform">ダッシュボードへ戻る</button>
+            </div>
+          </div>
+
+          <!-- Swipe Indicator Helpers -->
+          <div id="swipe-hints" class="flex justify-between w-full max-w-[280px] mt-4 px-2 text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+            <span class="flex items-center"><i data-lucide="arrow-left" class="w-3.5 h-3.5 mr-1"></i> 左: わからない</span>
+            <span class="flex items-center">右: わかる <i data-lucide="arrow-right" class="w-3.5 h-3.5 ml-1"></i></span>
+          </div>
+        </div>
+
+        <!-- Action / Control Footer -->
+        <div class="bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 px-6 py-4 flex items-center justify-around">
+          <!-- Button: Dislike (Left) -->
+          <button id="btn-action-no" class="w-12 h-12 rounded-full border border-red-200 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center justify-center transition-all shadow-sm active:scale-90">
+            <i data-lucide="x" class="w-6 h-6"></i>
+          </button>
+          
+          <!-- Button: TTS (Middle) -->
+          <button id="btn-action-speak" class="w-10 h-10 rounded-full border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center transition-all active:scale-90" title="発音を聞く">
+            <i data-lucide="volume-2" class="w-5 h-5"></i>
+          </button>
+
+          <!-- Button: Flip (Middle-Flip) -->
+          <button id="btn-action-flip" class="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all active:scale-95">
+            カードをめくる
+          </button>
+
+          <!-- Button: Like (Right) -->
+          <button id="btn-action-yes" class="w-12 h-12 rounded-full border border-emerald-200 dark:border-emerald-900/30 text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 flex items-center justify-center transition-all shadow-sm active:scale-90">
+            <i data-lucide="check" class="w-6 h-6"></i>
+          </button>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- VIEW 3: CSV IMPORT PANEL (Collapsible/Page)   -->
+      <!-- ============================================== -->
+      <section id="view-import" class="absolute inset-0 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between hidden z-20">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <button id="btn-import-back" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <i data-lucide="chevron-left" class="w-5 h-5 pointer-events-none"></i>
+          </button>
+          <span class="font-extrabold text-sm text-slate-800 dark:text-slate-200">CSVインポート</span>
+          <div class="w-8"></div> <!-- Spacer -->
+        </div>
+
+        <!-- Import Form Area -->
+        <div class="flex-1 p-6 space-y-6 overflow-y-auto">
+          <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">単語CSVファイルのアップロード</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              英単語帳データをインポートします。CSVファイルは以下のフォーマットで作成してください。
+            </p>
+            <div class="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+              セクション番号, 英単語, 日本語訳<br>
+              例：<br>
+              1, achieve, を達成する<br>
+              1, acquire, を習得する<br>
+              2, primary, 主要な
+            </div>
+          </div>
+
+          <!-- Drag and Drop Zone -->
+          <div id="drop-zone" class="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-brand-500 dark:hover:border-brand-500 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-3 cursor-pointer bg-white dark:bg-slate-900 transition-all">
+            <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
+              <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block">ファイルを選択するかドラッグ＆ドロップ</span>
+              <span class="text-[10px] text-slate-400 dark:text-slate-500">CSV形式 (最大 5MB)</span>
+            </div>
+            <input type="file" id="csv-file-input" class="hidden" accept=".csv">
+          </button>
+          </div>
+
+          <!-- Setup Mock Data Button (Convenience for testing) -->
+          <div class="text-center">
+            <span class="text-xs text-slate-400 block mb-2">- またはデモデータで始める -</span>
+            <button id="btn-load-demo" class="px-4 py-2 border border-brand-200 hover:bg-brand-50 dark:border-brand-900 dark:hover:bg-brand-950/20 text-brand-600 dark:text-brand-400 rounded-xl text-xs font-bold transition-all">
+              サンプル単語（Target 100語分）をロードする
+            </button>
+          </div>
+
+          <!-- Active Vocabulary Summary -->
+          <div id="import-stats-box" class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-3 hidden">
+            <h4 class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">現在のデータステータス</h4>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="bg-slate-50 dark:bg-slate-800 p-2 rounded-xl">
+                <span class="text-[10px] text-slate-400 block">総登録数</span>
+                <span id="txt-import-total" class="text-base font-extrabold text-slate-700 dark:text-slate-200">0</span>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800 p-2 rounded-xl">
+                <span class="text-[10px] text-slate-400 block">セクション数</span>
+                <span id="txt-import-sections" class="text-base font-extrabold text-slate-700 dark:text-slate-200">0</span>
+              </div>
+              <div class="bg-emerald-50 dark:bg-emerald-950/20 p-2 rounded-xl">
+                <span class="text-[10px] text-emerald-600 dark:text-emerald-400 block">習得済み</span>
+                <span id="txt-import-mastered" class="text-base font-extrabold text-emerald-600 dark:text-emerald-400">0</span>
+              </div>
+            </div>
+            <button id="btn-clear-database" class="w-full py-2 border border-red-200 hover:bg-red-50 text-red-600 rounded-xl text-xs font-semibold transition-all">
+              登録データをすべて削除する
+            </button>
+          </div>
+        </div>
+
+        <div class="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+          <button id="btn-finish-import" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md shadow-brand-500/10 active:scale-95 transition-transform">
+            ダッシュボードに戻る
+          </button>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Custom App JS -->
+  <script src="app.js"></script>
+</body>
+</html>
