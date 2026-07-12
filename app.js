@@ -64,9 +64,28 @@ function loadDataFromStorage() {
     if (rawHistory) {
       state.history = JSON.parse(rawHistory);
     }
+    
+    // Auto-load default vocabulary if database is empty
+    if (!state.words || state.words.length === 0) {
+      loadDefaultWords();
+    }
   } catch (e) {
     console.error('LocalStorageの読み込みに失敗しました', e);
   }
+}
+
+function loadDefaultWords() {
+  Papa.parse('target1900_words.csv', {
+    download: true,
+    header: false,
+    skipEmptyLines: true,
+    complete: function(results) {
+      processImportedData(results.data, true);
+    },
+    error: function(err) {
+      console.error('デフォルト単語データの自動読み込みに失敗しました:', err);
+    }
+  });
 }
 
 function saveDataToStorage() {
@@ -258,7 +277,7 @@ function handleCSVImport(file) {
   });
 }
 
-function processImportedData(rows) {
+function processImportedData(rows, isSilent = false) {
   if (rows.length === 0) return;
   
   // Skip header if matches
@@ -317,7 +336,9 @@ function processImportedData(rows) {
     
     saveDataToStorage();
     showImportStats();
-    alert(`${addedCount}語のデータをインポートしました！`);
+    if (!isSilent) {
+      alert(`${addedCount}語のデータをインポートしました！`);
+    }
     renderDashboard();
   }
 }
