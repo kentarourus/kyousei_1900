@@ -608,18 +608,30 @@ function updateActivityHistory() {
 // 8. TINDER SWIPE & CARD INTERACTION PHYSICS
 // ----------------------------------------------------
 function setupDragHandlers(card) {
-  // Flip event
-  card.addEventListener('click', (e) => {
-    // Avoid flipping when dragging or clicking buttons
-    if (state.drag.active || e.target.closest('.btn-card-tts')) return;
-    card.classList.toggle('rotate-y-180');
-  });
+  let isFlipped = false;
+  let hasDragged = false;
+  
+  // Track start positions to filter tiny movements (clicks) from actual drags
+  let startX = 0;
+  let startY = 0;
+
+  // Unified function to update style.transform
+  const updateTransform = (x = 0, y = 0, r = 0) => {
+    const flipRotation = isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)';
+    card.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${r}deg) ${flipRotation}`;
+  };
+
+  // Expose flip toggle to external button clicks
+  card.toggleFlip = () => {
+    isFlipped = !isFlipped;
+    updateTransform(0, 0, 0);
+  };
 
   // TTS Speaker inside back card
   const ttsBtn = card.querySelector('.btn-card-tts');
   if (ttsBtn) {
     ttsBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // Avoid flip
+      e.stopPropagation(); // Avoid flipping when clicking audio
       const word = state.currentSession.words[state.currentSession.currentIndex];
       speakWord(word.word);
     });
@@ -630,6 +642,9 @@ function setupDragHandlers(card) {
     state.drag.active = true;
     state.drag.startX = x;
     state.drag.startY = y;
+    startX = x;
+    startY = y;
+    hasDragged = false;
     state.drag.element = card;
     card.classList.remove('card-drag-transition');
   };
@@ -640,12 +655,18 @@ function setupDragHandlers(card) {
     const diffX = x - state.drag.startX;
     const diffY = y - state.drag.startY;
     
+    // If the movement is more than 6px, treat it as a drag
+    if (Math.abs(x - startX) > 6 || Math.abs(y - startY) > 6) {
+      hasDragged = true;
+    }
+    
     state.drag.currentX = diffX;
     state.drag.currentY = diffY;
     
-    // Apply transform (move & rotate)
+    // Apply transform (move & rotate & flip state)
+    // Flip rotation direction should match flip state
     const rotate = diffX / 10;
-    card.style.transform = `translate(${diffX}px, ${diffY}px) rotate(${rotate}deg)`;
+    updateTransform(diffX, diffY, rotate);
     
     // Overlays opacity
     const overlayLike = card.querySelector('.overlay-like');
@@ -672,25 +693,35 @@ function setupDragHandlers(card) {
     
     card.classList.add('card-drag-transition');
     
-    if (diffX > swipeThreshold) {
-      // Swipe Right -> Mastered
-      swipeCardOut('right');
-    } else if (diffX < -swipeThreshold) {
-      // Swipe Left -> Learning
-      swipeCardOut('left');
+    if (hasDragged) {
+      if (diffX > swipeThreshold) {
+        // Swipe Right -> Mastered
+        swipeCardOut('right');
+      } else if (diffX < -swipeThreshold) {
+        // Swipe Left -> Learning
+        swipeCardOut('left');
+      } else {
+        // Bounce back to stable position
+        updateTransform(0, 0, 0);
+        const overlayLike = card.querySelector('.overlay-like');
+        const overlayNope = card.querySelector('.overlay-nope');
+        if (overlayLike) overlayLike.style.opacity = 0;
+        if (overlayNope) overlayNope.style.opacity = 0;
+      }
     } else {
-      // Bounce back
-      card.style.transform = '';
-      const overlayLike = card.querySelector('.overlay-like');
-      const overlayNope = card.querySelector('.overlay-nope');
-      if (overlayLike) overlayLike.style.opacity = 0;
-      if (overlayNope) overlayNope.style.opacity = 0;
+      // Tap detected (little to no drag movement)
+      isFlipped = !isFlipped;
+      updateTransform(0, 0, 0);
     }
+    
+    // Reset positions
+    state.drag.currentX = 0;
+    state.drag.currentY = 0;
   };
 
   // Mouse handlers
   card.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0 || e.target.closest('.btn-card-tts')) return; // Left click only, avoid buttons
     startDrag(e.clientX, e.clientY);
   });
   
@@ -705,6 +736,7 @@ function setupDragHandlers(card) {
 
   // Touch handlers
   card.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.btn-card-tts')) return;
     const touch = e.touches[0];
     startDrag(touch.clientX, touch.clientY);
   });
