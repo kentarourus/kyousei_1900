@@ -68,6 +68,8 @@ function loadDataFromStorage() {
     // Auto-load default vocabulary if database is empty
     if (!state.words || state.words.length === 0) {
       loadDefaultWords();
+    } else {
+      repairSectionIdsIfNeeded();
     }
   } catch (e) {
     console.error('LocalStorageの読み込みに失敗しました', e);
@@ -84,6 +86,59 @@ function loadDefaultWords() {
     },
     error: function(err) {
       console.error('デフォルト単語データの自動読み込みに失敗しました:', err);
+    }
+  });
+}
+
+function repairSectionIdsIfNeeded() {
+  if (!state.words || state.words.length === 0) return;
+  
+  const hasInvalidSection = state.words.some(w => w.section_id > 19);
+  if (!hasInvalidSection) return;
+  
+  console.log('検出：無効なセクションIDが存在します。自動修復を開始します...');
+  
+  Papa.parse('target1900_words.csv', {
+    download: true,
+    header: false,
+    skipEmptyLines: true,
+    complete: function(results) {
+      const rows = results.data;
+      if (rows.length === 0) return;
+      
+      let startIdx = 0;
+      if (rows[0][0].includes('番号') || rows[0][0].includes('セクション') || rows[0][1].toLowerCase().includes('word') || rows[0][1].includes('単語')) {
+        startIdx = 1;
+      }
+      
+      const wordToSectionMap = {};
+      for (let i = startIdx; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.length < 3) continue;
+        const col1 = parseInt(row[0].trim(), 10);
+        const wordStr = row[1].trim();
+        const sectionId = Math.floor((col1 - 1) / 100) + 1;
+        wordToSectionMap[wordStr] = sectionId;
+      }
+      
+      let repairedCount = 0;
+      state.words.forEach(w => {
+        const correctSectionId = wordToSectionMap[w.word];
+        if (correctSectionId && w.section_id !== correctSectionId) {
+          w.section_id = correctSectionId;
+          w.id = `${correctSectionId}-${w.word}`;
+          repairedCount++;
+        }
+      });
+      
+      if (repairedCount > 0) {
+        console.log(`自動修復完了：${repairedCount}単語のセクションIDを修正しました。`);
+        saveDataToStorage();
+        renderDashboard();
+      }
+    },
+    error: function(err) {
+      console.error('セクション修復用データの読み込みに失敗しました:', err);
     }
   });
 }
@@ -287,6 +342,47 @@ function processImportedData(rows, isSilent = false) {
     startIdx = 1;
   }
   
+  // Detect if the first column contains serial numbers (1-1900) or section IDs (1-19)
+  let isSerialNumber = false;
+  
+  // 1. Check header if available
+  if (firstRow && firstRow[0]) {
+    const headerText = firstRow[0].trim();
+    if (headerText === '番号' || headerText.toLowerCase() === 'no' || headerText.toLowerCase() === 'id') {
+      isSerialNumber = true;
+    } else if (headerText.includes('セクション') || headerText.toLowerCase().includes('section')) {
+      isSerialNumber = false;
+    }
+  }
+  
+  // 2. If header auto-detection wasn't definitive, scan values
+  if (!isSerialNumber) {
+    let hasValGreaterThan19 = false;
+    let hasDuplicates = false;
+    const seenValues = new Set();
+    
+    for (let i = startIdx; i < rows.length; i++) {
+      const row = rows[i];
+      if (row.length < 1) continue;
+      const val = parseInt(row[0].trim(), 10);
+      if (!isNaN(val)) {
+        if (val > 19) {
+          hasValGreaterThan19 = true;
+        }
+        if (seenValues.has(val)) {
+          hasDuplicates = true;
+        }
+        seenValues.add(val);
+      }
+    }
+    
+    if (hasValGreaterThan19) {
+      isSerialNumber = true;
+    } else if (!hasDuplicates && seenValues.size > 1) {
+      isSerialNumber = true;
+    }
+  }
+  
   let addedCount = 0;
   const newWords = [];
   
@@ -302,11 +398,11 @@ function processImportedData(rows, isSilent = false) {
     
     // Auto-detect section_id
     let sectionId = 1;
-    if (col1 > 100) {
-      // It is likely serial number (1-1900)
+    if (isSerialNumber) {
+      // It is a serial number (1-1900)
       sectionId = Math.floor((col1 - 1) / 100) + 1;
     } else {
-      // It is likely section ID (1-19)
+      // It is a section ID (1-19)
       sectionId = col1;
     }
     

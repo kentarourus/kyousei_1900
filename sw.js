@@ -1,4 +1,4 @@
-const CACHE_NAME = 'target1900-habit-v1';
+const CACHE_NAME = 'target1900-habit-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
