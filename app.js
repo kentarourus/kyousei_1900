@@ -160,6 +160,16 @@ function getTodayString() {
   return `${y}-${m}-${date}`;
 }
 
+// Fisher-Yates Shuffle Algorithm
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ----------------------------------------------------
 // 3. THEME MANAGEMENT
 // ----------------------------------------------------
@@ -394,6 +404,11 @@ function processImportedData(rows, isSilent = false) {
     const wordStr = row[1].trim();
     const meaningStr = row[2].trim();
     
+    // Optional extended columns (Part of speech, Example sentence, Example translation)
+    const partOfSpeechStr = row[3] ? row[3].trim() : '';
+    const exampleStr = row[4] ? row[4].trim() : '';
+    const exampleMeaningStr = row[5] ? row[5].trim() : '';
+    
     if (!wordStr || !meaningStr) continue;
     
     // Auto-detect section_id
@@ -415,18 +430,52 @@ function processImportedData(rows, isSilent = false) {
       meaning: meaningStr,
       section_id: sectionId,
       status: 'new',
-      lastStudiedDate: null
+      lastStudiedDate: null,
+      
+      // Study statistics
+      correctCount: 0,
+      mistakeCount: 0,
+      reviewCount: 0,
+      
+      // Forgetting curve metrics (SM-2)
+      interval: 0,
+      easeFactor: 2.5,
+      reps: 0,
+      nextReviewDate: null,
+      
+      // User memo
+      memo: '',
+      
+      // Extended vocabulary details
+      partOfSpeech: partOfSpeechStr,
+      example: exampleStr,
+      exampleMeaning: exampleMeaningStr
     });
     addedCount++;
   }
   
   if (newWords.length > 0) {
-    // Append or replace
-    // For prototype, we merge. If word ID exists, we preserve status
+    // Merge: If word ID exists, update meaning/details but preserve statistics and memo
     newWords.forEach(nw => {
-      const exists = state.words.find(w => w.id === nw.id);
-      if (!exists) {
+      const existsIdx = state.words.findIndex(w => w.id === nw.id);
+      if (existsIdx === -1) {
         state.words.push(nw);
+      } else {
+        const existing = state.words[existsIdx];
+        existing.meaning = nw.meaning;
+        if (nw.partOfSpeech) existing.partOfSpeech = nw.partOfSpeech;
+        if (nw.example) existing.example = nw.example;
+        if (nw.exampleMeaning) existing.exampleMeaning = nw.exampleMeaning;
+        
+        // Data migration / safe-guards for existing users
+        if (existing.correctCount === undefined) existing.correctCount = 0;
+        if (existing.mistakeCount === undefined) existing.mistakeCount = 0;
+        if (existing.reviewCount === undefined) existing.reviewCount = 0;
+        if (existing.interval === undefined) existing.interval = 0;
+        if (existing.easeFactor === undefined) existing.easeFactor = 2.5;
+        if (existing.reps === undefined) existing.reps = 0;
+        if (existing.nextReviewDate === undefined) existing.nextReviewDate = null;
+        if (existing.memo === undefined) existing.memo = '';
       }
     });
     
@@ -443,16 +492,16 @@ function loadDemoData() {
   const demo = [];
   // Section 1: 100 words (subset)
   const sampleWords = [
-    { word: "create", meaning: "を創り出す；を引き起こす" },
-    { word: "increase", meaning: "増加する；を増やす" },
-    { word: "improve", meaning: "を向上させる；よくなる" },
-    { word: "mean", meaning: "を意味する；つもりである" },
-    { word: "own", meaning: "を所有している；を認める" },
-    { word: "include", meaning: "を含む" },
-    { word: "consider", meaning: "を見なす；について考える" },
-    { word: "allow", meaning: "を許す；を与える" },
-    { word: "suggest", meaning: "を提案する；を暗示する" },
-    { word: "produce", meaning: "を生産する；を取り出す" }
+    { word: "create", meaning: "を創り出す；を引き起こす", partOfSpeech: "動詞", example: "He wants to create a new website.", exampleMeaning: "彼は新しいウェブサイトを立ち上げたいと思っている。" },
+    { word: "increase", meaning: "増加する；を増やす", partOfSpeech: "動詞", example: "The population continues to increase.", exampleMeaning: "人口は増加し続けている。" },
+    { word: "improve", meaning: "を向上させる；よくなる", partOfSpeech: "動詞", example: "I need to improve my English speaking skills.", exampleMeaning: "英語を話すスキルを向上させる必要がある。" },
+    { word: "mean", meaning: "を意味する；つもりである", partOfSpeech: "動詞", example: "What does this word mean?", exampleMeaning: "この単語はどういう意味ですか？" },
+    { word: "own", meaning: "を所有している；を認める", partOfSpeech: "動詞", example: "They own a beautiful house by the lake.", exampleMeaning: "彼らは湖のそばに美しい家を所有している。" },
+    { word: "include", meaning: "を含む", partOfSpeech: "動詞", example: "Does the price include tax?", exampleMeaning: "価格に税金は含まれていますか？" },
+    { word: "consider", meaning: "を見なす；について考える", partOfSpeech: "動詞", example: "Please consider my proposal.", exampleMeaning: "私の提案を検討してください。" },
+    { word: "allow", meaning: "を許す；を与える", partOfSpeech: "動詞", example: "Smoking is not allowed inside.", exampleMeaning: "館内での喫煙は許可されていません。" },
+    { word: "suggest", meaning: "を提案する；を暗示する", partOfSpeech: "動詞", example: "She suggested going to the park.", exampleMeaning: "彼女は公園に行くことを提案した。" },
+    { word: "produce", meaning: "を生産する；を取り出す", partOfSpeech: "動詞", example: "The factory produces thousands of cars a day.", exampleMeaning: "その工場は1日に何千台もの車を生産している。" }
   ];
   
   sampleWords.forEach((item, index) => {
@@ -462,14 +511,33 @@ function loadDemoData() {
       meaning: item.meaning,
       section_id: 1,
       status: 'new',
-      lastStudiedDate: null
+      lastStudiedDate: null,
+      
+      // Study statistics
+      correctCount: 0,
+      mistakeCount: 0,
+      reviewCount: 0,
+      
+      // Forgetting curve metrics (SM-2)
+      interval: 0,
+      easeFactor: 2.5,
+      reps: 0,
+      nextReviewDate: null,
+      
+      // User memo
+      memo: '',
+      
+      // Extended details
+      partOfSpeech: item.partOfSpeech || '',
+      example: item.example || '',
+      exampleMeaning: item.exampleMeaning || ''
     });
   });
   
   state.words = demo;
   saveDataToStorage();
   showImportStats();
-  alert('デモデータをロードしました！ (セクション1: 10単語)');
+  alert('デモデータをロードしました！ (セクション1: 10単語 - 例文付き)');
   renderDashboard();
 }
 
@@ -644,63 +712,94 @@ function startStudySession(mode) {
   
   switch(mode) {
     case 'morning':
-      // 朝: 新規単語(new)の閲覧（本日分、または最初のセクションのnew）
+      // 朝: 新規単語(new)の閲覧（ランダムに15単語）
       modeTitle = '【朝】新規単語の閲覧';
       modeDesc = '発音を聞きながら意味を素早くインプット';
-      targetWords = state.words.filter(w => w.status === 'new').slice(0, 15); // Prototype limit 15 for demo
-      if (targetWords.length === 0) {
-        // Fallback to learning
-        targetWords = state.words.slice(0, 15);
+      
+      const newWords = state.words.filter(w => w.status === 'new');
+      if (newWords.length > 0) {
+        targetWords = shuffleArray(newWords).slice(0, 15);
+      } else {
+        // 新規がない場合は学習中や全体からランダム
+        targetWords = shuffleArray(state.words).slice(0, 15);
       }
       break;
       
     case 'afternoon':
-      // 昼: 今日の新規・学習中単語 ＆ 前日までの習得済み単語を交互に出題
+      // 昼: 今日の復習予定単語 ＆ 学習中単語をミックスして出題
       modeTitle = '【昼】仕分けテスト';
       modeDesc = '左右スワイプで仕分け (右:わかる / 左:わからない)';
       
-      const newOrLearning = state.words.filter(w => w.status === 'new' || w.status === 'learning');
-      const mastered = state.words.filter(w => w.status === 'mastered');
+      // 1. 今日の復習が必要な既習単語 (nextReviewDate <= today)
+      const reviewPending = state.words.filter(w => 
+        w.status === 'mastered' && 
+        w.nextReviewDate && 
+        w.nextReviewDate <= today
+      );
       
-      // Interleaving merge (1 active, 1 mastered, etc.)
-      const limit = Math.min(newOrLearning.length, 15);
-      const activeList = newOrLearning.slice(0, limit);
-      const masteredList = mastered.slice(0, limit);
+      // 2. 学習中の単語
+      const learningWords = state.words.filter(w => w.status === 'learning');
       
-      targetWords = [];
-      for (let i = 0; i < limit; i++) {
-        if (activeList[i]) targetWords.push(activeList[i]);
-        if (masteredList[i]) targetWords.push(masteredList[i]);
+      // 3. 不足分を補う新規単語
+      const newForAfternoon = state.words.filter(w => w.status === 'new');
+      
+      // マージしてシャッフル
+      let merged = [...reviewPending, ...learningWords];
+      merged = shuffleArray(merged);
+      
+      // 20語に満たない場合は新規を足す
+      if (merged.length < 20 && newForAfternoon.length > 0) {
+        const shuffledNew = shuffleArray(newForAfternoon);
+        const needed = 20 - merged.length;
+        merged = [...merged, ...shuffledNew.slice(0, needed)];
       }
       
-      // If still empty, load any words
+      targetWords = merged.slice(0, 20);
+      
+      // Fallback
       if (targetWords.length === 0) {
-        targetWords = state.words.slice(0, 10);
+        targetWords = shuffleArray(state.words).slice(0, 15);
       }
       break;
       
     case 'evening':
-      // 夕方: 習得済み(mastered)からランダム抽出
+      // 夕方: 習得済み(mastered)から、特に復習期日を迎えたものを優先して出題
       modeTitle = '【夕方】過去の復習';
       modeDesc = '習得済みの記憶を間隔反復で定着確認';
-      targetWords = state.words.filter(w => w.status === 'mastered');
-      // Shuffle & limit
-      targetWords = targetWords.sort(() => 0.5 - Math.random()).slice(0, 10);
-      if (targetWords.length === 0) {
+      
+      const masteredWords = state.words.filter(w => w.status === 'mastered');
+      if (masteredWords.length === 0) {
         alert('習得済み(Mastered)の単語がありません。まずは昼のテストで仕分けてください。');
         return;
       }
+      
+      // 復習期日を迎えているもの（nextReviewDateが無い、または今日以前のもの）
+      const dueMastered = masteredWords.filter(w => !w.nextReviewDate || w.nextReviewDate <= today);
+      // まだ期日でないもの
+      const notDueMastered = masteredWords.filter(w => w.nextReviewDate && w.nextReviewDate > today);
+      
+      let eveningList = shuffleArray(dueMastered);
+      
+      // 15語に満たない場合は、他の習得済みから補充
+      if (eveningList.length < 15 && notDueMastered.length > 0) {
+        const extra = shuffleArray(notDueMastered);
+        eveningList = [...eveningList, ...extra.slice(0, 15 - eveningList.length)];
+      }
+      
+      targetWords = eveningList.slice(0, 15);
       break;
       
     case 'night':
-      // 夜: 「学習中(learning)」の単語のみをサドンデス形式で
+      // 夜: 「学習中(learning)」の単語のみをサドンデス形式で（シャッフルして出題）
       modeTitle = '【夜】今日の総復習';
       modeDesc = '間違えた単語のサドンデスループ';
-      targetWords = state.words.filter(w => w.status === 'learning');
-      if (targetWords.length === 0) {
+      
+      const nightLearning = state.words.filter(w => w.status === 'learning');
+      if (nightLearning.length === 0) {
         alert('現在「学習中(Learning)」の単語はありません！');
         return;
       }
+      targetWords = shuffleArray(nightLearning);
       break;
   }
   
@@ -786,17 +885,53 @@ function renderCurrentCard() {
     </div>
     
     <!-- Back Face -->
-    <div class="card-face-back absolute inset-0 flex flex-col justify-between p-6 rotate-y-180 backface-hidden bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 border-2 border-brand-500/20 rounded-3xl opacity-0 pointer-events-none">
+    <div class="card-face-back absolute inset-0 flex flex-col justify-between p-5 rotate-y-180 backface-hidden bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 border-2 border-brand-500/20 rounded-3xl opacity-0 pointer-events-none overflow-y-auto">
       <div class="flex justify-between items-center text-[10px] font-bold text-brand-500">
-        <span>MEANING</span>
+        <span>MEANING & DETAILS</span>
         <button class="btn-card-tts p-1.5 rounded-full bg-brand-50 dark:bg-brand-950/50 text-brand-600 dark:text-brand-400">
           <svg class="w-4 h-4 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
         </button>
       </div>
-      <div class="text-center py-10 flex-1 flex flex-col justify-center">
-        <p class="text-xl font-bold text-slate-800 dark:text-slate-100 leading-relaxed px-2">${word.meaning}</p>
+      
+      <div class="text-center py-3 flex-1 flex flex-col justify-center space-y-3">
+        <div>
+          ${word.partOfSpeech ? `<span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 uppercase tracking-wider">${word.partOfSpeech}</span>` : ''}
+          <p class="text-xl font-bold text-slate-800 dark:text-slate-100 leading-relaxed mt-1 px-2">${word.meaning}</p>
+        </div>
+        
+        <!-- Example sentence if available -->
+        ${word.example ? `
+        <div class="text-left bg-slate-100/50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+          <span class="text-[8px] font-bold text-slate-400 block mb-0.5">EXAMPLE</span>
+          <p class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 leading-relaxed">${word.example}</p>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">${word.exampleMeaning || ''}</p>
+        </div>
+        ` : ''}
+
+        <!-- Study Stats -->
+        <div class="grid grid-cols-3 gap-1 text-[9px] text-slate-500 dark:text-slate-400 bg-slate-100/40 dark:bg-slate-900/50 p-1.5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+          <div>
+            <span class="block text-[7px] text-slate-400">復習間隔</span>
+            <span class="font-bold text-slate-700 dark:text-slate-300">${word.interval || 0}日</span>
+          </div>
+          <div>
+            <span class="block text-[7px] text-slate-400">正答率</span>
+            <span class="font-bold text-slate-700 dark:text-slate-300">${word.reviewCount ? Math.round((word.correctCount / word.reviewCount) * 100) : 0}%</span>
+          </div>
+          <div>
+            <span class="block text-[7px] text-slate-400">予定日</span>
+            <span class="font-bold text-slate-700 dark:text-slate-300">${word.nextReviewDate ? word.nextReviewDate.slice(5) : '本日'}</span>
+          </div>
+        </div>
+
+        <!-- Memo Area -->
+        <div class="text-left space-y-0.5">
+          <label class="text-[8px] font-bold text-slate-400 block">マイメモ (自動保存)</label>
+          <textarea class="txt-card-memo w-full h-11 text-[11px] p-1.5 border border-slate-200 dark:border-slate-800 dark:bg-slate-950/50 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 resize-none placeholder-slate-300 dark:placeholder-slate-700" placeholder="覚え方などをメモできます...">${word.memo || ''}</textarea>
+        </div>
       </div>
-      <div class="text-center text-[10px] text-slate-400">
+      
+      <div class="text-center text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
         スワイプして仕分ける
       </div>
     </div>
@@ -811,6 +946,27 @@ function renderCurrentCard() {
   `;
   
   arena.appendChild(card);
+  
+  // Memo input handlers to prevent card flip or drag during typing
+  const memoTextarea = card.querySelector('.txt-card-memo');
+  if (memoTextarea) {
+    const stopEvents = ['mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'touchmove'];
+    stopEvents.forEach(evt => {
+      memoTextarea.addEventListener(evt, (e) => {
+        e.stopPropagation();
+      });
+    });
+    
+    // Auto-save input to state & LocalStorage
+    memoTextarea.addEventListener('input', (e) => {
+      const targetWord = state.words.find(w => w.id === word.id);
+      if (targetWord) {
+        targetWord.memo = e.target.value;
+        saveDataToStorage();
+      }
+    });
+  }
+
   initLucide();
   
   // Setup drag & drop physics for the card
@@ -1076,10 +1232,10 @@ function swipeCardOut(direction) {
     // Standard sorting modes
     if (direction === 'right') {
       card.classList.add('card-swipe-out-right');
-      updateWordStatus(currentWord.id, 'mastered');
+      recordStudyResult(currentWord.id, true);
     } else {
       card.classList.add('card-swipe-out-left');
-      updateWordStatus(currentWord.id, 'learning');
+      recordStudyResult(currentWord.id, false);
       
       // Add to wrong list for night mode cycle if active
       if (state.currentSession.mode === 'night') {
@@ -1100,8 +1256,73 @@ function updateWordStatus(wordId, status) {
   if (word) {
     word.status = status;
     word.lastStudiedDate = getTodayString();
+    
+    // Safe initialization
+    if (word.correctCount === undefined) word.correctCount = 0;
+    if (word.mistakeCount === undefined) word.mistakeCount = 0;
+    if (word.reviewCount === undefined) word.reviewCount = 0;
+    if (word.interval === undefined) word.interval = 0;
+    if (word.easeFactor === undefined) word.easeFactor = 2.5;
+    if (word.reps === undefined) word.reps = 0;
+    if (word.memo === undefined) word.memo = '';
+    
     saveDataToStorage();
   }
+}
+
+function recordStudyResult(wordId, isCorrect) {
+  const word = state.words.find(w => w.id === wordId);
+  if (!word) return;
+
+  const todayStr = getTodayString();
+  
+  // Safe initialization
+  if (word.correctCount === undefined) word.correctCount = 0;
+  if (word.mistakeCount === undefined) word.mistakeCount = 0;
+  if (word.reviewCount === undefined) word.reviewCount = 0;
+  if (word.interval === undefined) word.interval = 0;
+  if (word.easeFactor === undefined) word.easeFactor = 2.5;
+  if (word.reps === undefined) word.reps = 0;
+  if (word.memo === undefined) word.memo = '';
+
+  word.reviewCount++;
+  word.lastStudiedDate = todayStr;
+
+  if (isCorrect) {
+    word.correctCount++;
+    word.status = 'mastered';
+    word.reps++;
+    
+    // Calculate memory interval
+    if (word.reps === 1) {
+      word.interval = 1; // 1 day
+    } else if (word.reps === 2) {
+      word.interval = 4; // 4 days
+    } else {
+      word.interval = Math.round(word.interval * word.easeFactor);
+    }
+    
+    // Increase ease factor slightly
+    word.easeFactor = Math.min(2.5, word.easeFactor + 0.1);
+  } else {
+    word.mistakeCount++;
+    word.status = 'learning';
+    word.reps = 0;
+    word.interval = 1; // Review next day
+    
+    // Decrease ease factor
+    word.easeFactor = Math.max(1.3, word.easeFactor - 0.2);
+  }
+
+  // Calculate next review date
+  const nextDate = new Date();
+  nextDate.setDate(nextDate.getDate() + word.interval);
+  const y = nextDate.getFullYear();
+  const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+  const d = String(nextDate.getDate()).padStart(2, '0');
+  word.nextReviewDate = `${y}-${m}-${d}`;
+
+  saveDataToStorage();
 }
 
 // Autoplay controllers for Morning Mode
@@ -1334,4 +1555,88 @@ function setupEventListeners() {
       }
     });
   }
+
+  // JSON Backup UI event handlers
+  const btnExportFile = document.getElementById('btn-export-file');
+  const btnTriggerImportFile = document.getElementById('btn-trigger-import-file');
+  const backupFileInput = document.getElementById('backup-file-input');
+  
+  if (btnExportFile && btnTriggerImportFile && backupFileInput) {
+    btnExportFile.addEventListener('click', () => {
+      exportBackupToFile();
+    });
+    
+    btnTriggerImportFile.addEventListener('click', () => {
+      backupFileInput.click();
+    });
+    
+    backupFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        importBackupFromFile(file);
+        backupFileInput.value = ''; // Reset
+      }
+    });
+  }
+}
+
+function exportBackupToFile() {
+  if (state.words.length === 0) {
+    alert('エクスポートするデータがありません。');
+    return;
+  }
+  const backupData = {
+    words: state.words,
+    history: state.history,
+    exportDate: new Date().toISOString()
+  };
+  const jsonStr = JSON.stringify(backupData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `target1900_backup_${getTodayString()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importBackupFromFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.words || !data.history) {
+        throw new Error('バックアップファイルのフォーマットが正しくありません。');
+      }
+      
+      if (confirm(`インポートを実行しますか？現在のデータが上書きされます。\n(登録単語数: ${data.words.length}語)`)) {
+        state.words = data.words;
+        state.history = data.history;
+        
+        // Data migration / safe-guards on import
+        state.words.forEach(word => {
+          if (word.correctCount === undefined) word.correctCount = 0;
+          if (word.mistakeCount === undefined) word.mistakeCount = 0;
+          if (word.reviewCount === undefined) word.reviewCount = 0;
+          if (word.interval === undefined) word.interval = 0;
+          if (word.easeFactor === undefined) word.easeFactor = 2.5;
+          if (word.reps === undefined) word.reps = 0;
+          if (word.nextReviewDate === undefined) word.nextReviewDate = null;
+          if (word.memo === undefined) word.memo = '';
+        });
+        
+        saveDataToStorage();
+        showImportStats();
+        renderDashboard();
+        alert('バックアップファイルからデータを正常に復元しました！');
+      }
+    } catch (err) {
+      alert('ファイルのインポートに失敗しました。正しいJSONバックアップファイルか確認してください。\nエラー: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
 }

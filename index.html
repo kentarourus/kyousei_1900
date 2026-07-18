@@ -417,6 +417,29 @@
             </div>
           </div>
 
+          <!-- Backup/Restore File Section -->
+          <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-4">
+            <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
+              <i data-lucide="database" class="w-4 h-4 text-brand-500"></i>
+              <span>データのバックアップ (JSON)</span>
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              学習進捗、忘却曲線のパラメータ、およびメモを含むすべてのデータをJSONファイルとしてエクスポート・インポートできます。
+            </p>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-export-file" class="py-2 px-3 bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-950/30 dark:hover:bg-brand-950/50 dark:text-brand-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>ファイルに書き出し</span>
+              </button>
+              <button id="btn-trigger-import-file" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1">
+                <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                <span>ファイルから読み込み</span>
+              </button>
+            </div>
+            <input type="file" id="backup-file-input" class="hidden" accept=".json">
+          </div>
+
           <!-- Active Vocabulary Summary -->
           <div id="import-stats-box" class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm space-y-3 hidden">
             <h4 class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">現在のデータステータス</h4>
